@@ -175,6 +175,38 @@ def butterdiff(x, dt, params=None, options={}, filter_order=2, cutoff_freq=0.5, 
 
     return finitediff(x_hat, dt, order=2, axis=axis)
 
+def besseldiff(x, dt, params=None, options={}, filter_order=2, cutoff_freq=0.5, num_iterations=1, axis=0):
+    """Perform butterworth smoothing on x with scipy.signal.filtfilt followed by second order finite difference
+
+    :param np.array[float] x: data to differentiate. May be multidimensional; see :code:`axis`.
+    :param float dt: step size
+    :param list[int] params: (**deprecated**, prefer :code:`filter_order`, :code:`cutoff_freq`,
+        and :code:`num_iterations`)
+    :param dict options: (**deprecated**, prefer :code:`num_iterations`) an empty dictionary or {'iterate': (bool)}
+    :param int filter_order: order of the filter
+    :param float cutoff_freq: cutoff frequency :math:`\\in [0, 1]`. For a discrete vector, the
+        value is normalized to the range 0-1, where 1 is the Nyquist frequency.
+    :param int num_iterations: how many times to apply smoothing
+    :param int axis: data dimension along which differentiation is performed
+
+    :return: - **x_hat** (np.array) -- estimated (smoothed) x
+             - **dxdt_hat** (np.array) -- estimated derivative of x
+    """
+    if params is not None: # Warning to support old interface for a while. Remove these lines along with params in a future release.
+        warn("`params` and `options` parameters will be removed in a future version. Use `filter_order`, " +
+            "`cutoff_freq`, and `num_iterations` instead.", DeprecationWarning)
+        filter_order, cutoff_freq = params[0:2]
+        if 'iterate' in options and options['iterate']:
+            num_iterations = params[2]
+
+    b, a = scipy.signal.bessel(filter_order, cutoff_freq)
+
+    x_hat = x
+    padlen = x.shape[axis]-1 if x.shape[axis] < 9 else None
+    for _ in range(num_iterations):
+        x_hat = scipy.signal.filtfilt(b, a, x_hat, axis=axis, method="pad", padlen=padlen) # applies forward and backward pass so zero phase
+
+    return finitediff(x_hat, dt, order=2, axis=axis)
 
 def splinediff(*args, **kwargs): # pragma: no cover pylint: disable=missing-function-docstring
     warn("`splindiff` has moved to `polynomial_fit.splinediff` and will be removed from "
